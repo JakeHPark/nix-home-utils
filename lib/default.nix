@@ -42,6 +42,7 @@ rec {
       lib,
       pkgs,
       path,
+      replaceFile ? null,
       options,
       extra ? ".",
     }:
@@ -59,7 +60,12 @@ rec {
       if [ -e "$target" ]; then
         ${pkgs.coreutils}/bin/chmod --reference="$target" "$temp"
       fi
-      (${pkgs.coreutils}/bin/cat "$target" 2>/dev/null || printf '%s' '{}') \
+      ${
+        if replaceFile == null then
+          ''(${pkgs.coreutils}/bin/cat "$target" 2>/dev/null || printf '%s' '{}')''
+        else
+          "printf '%s' ${lib.escapeShellArg replaceFile}"
+      } \
         | ${pkgs.jq}/bin/jq --argjson patch ${lib.escapeShellArg (builtins.toJSON options)} '. * $patch' \
         | ${pkgs.jq}/bin/jq ${lib.escapeShellArg extra} > "$temp"
       ${pkgs.coreutils}/bin/mv -f "$temp" "$target"
@@ -70,6 +76,7 @@ rec {
       lib,
       pkgs,
       path,
+      replaceFile ? null,
       options,
     }:
     let
@@ -86,7 +93,7 @@ rec {
         *) target="$HOME/$target" ;;
       esac
 
-      ${patchIniScript}/bin/patch-ini "$target" ${lib.escapeShellArg (builtins.toJSON options)}
+      ${patchIniScript}/bin/patch-ini "$target" ${lib.escapeShellArg (builtins.toJSON options)} ${lib.escapeShellArg (builtins.toJSON replaceFile)}
     '';
 
   mkPatchNixConfigActivation =
@@ -118,22 +125,37 @@ rec {
       lib,
       pkgs,
       extension,
+      replaceFile ? null,
       options,
       extra ? ".",
+      extraAllowedSites ? [ ],
       profilesPath ? ".config/mozilla/firefox",
       profileName ? "default",
       profilePath ? null,
     }:
-    mkPatchJsonActivation {
-      inherit
-        lib
-        pkgs
-        options
-        extra
-        ;
-      path = "${profilesPath}/${
-        if profilePath == null then profileName else profilePath
-      }/browser-extension-data/${getXpiGuid extension}/storage.js";
+    let
+      resolvedProfilePath = if profilePath == null then profileName else profilePath;
+      guid = getXpiGuid extension;
+      storagePatch = mkPatchJsonActivation {
+        inherit
+          lib
+          pkgs
+          options
+          extra
+          replaceFile
+          ;
+        path = "${profilesPath}/${resolvedProfilePath}/browser-extension-data/${guid}/storage.js";
+      };
+      allowedSitesPatch = mkPatchJsonActivation {
+        inherit lib pkgs;
+        path = "${profilesPath}/${resolvedProfilePath}/extension-preferences.json";
+        options = { };
+        extra = ".${builtins.toJSON guid}.origins = (reduce ${builtins.toJSON extraAllowedSites}[] as $site ((.${builtins.toJSON guid}.origins // []); if index($site) == null then . + [$site] else . end))";
+      };
+    in
+    storagePatch
+    // {
+      data = storagePatch.data + lib.optionalString (extraAllowedSites != [ ]) allowedSitesPatch.data;
     };
 
   patchJson = mkPatchJsonActivation;

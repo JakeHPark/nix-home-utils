@@ -31,6 +31,12 @@ let
           description = "JSON file to patch. Relative paths are resolved against HOME; absolute paths are used as-is.";
         };
 
+        replaceFile = mkOption {
+          type = types.nullOr types.lines;
+          default = null;
+          description = "Text used to replace the entire JSON file before options and extra are applied.";
+        };
+
         options = mkOption {
           type = jsonType;
           default = { };
@@ -42,6 +48,7 @@ let
           default = ".";
           description = "Additional jq filter applied after the merge.";
         };
+
       };
     };
 
@@ -52,6 +59,12 @@ let
         path = mkOption {
           type = types.str;
           description = "INI file to patch. Relative paths are resolved against HOME; absolute paths are used as-is.";
+        };
+
+        replaceFile = mkOption {
+          type = types.nullOr types.lines;
+          default = null;
+          description = "Text used to replace the entire INI file before options are applied.";
         };
 
         options = mkOption {
@@ -79,6 +92,12 @@ let
           description = "Home Manager Firefox profile name. If declared under programs.firefox.profiles, its path is used; otherwise the name itself is used as the profile directory.";
         };
 
+        replaceFile = mkOption {
+          type = types.nullOr types.lines;
+          default = null;
+          description = "Text used to replace the entire extension storage file before options and extra are applied.";
+        };
+
         options = mkOption {
           type = jsonType;
           default = { };
@@ -89,6 +108,12 @@ let
           type = types.str;
           default = ".";
           description = "Additional jq filter applied after the merge.";
+        };
+
+        extraAllowedSites = mkOption {
+          type = types.listOf types.str;
+          default = [ ];
+          description = "Additional site origins to add to this extension in the Firefox profile's extension-preferences.json.";
         };
       };
     };
@@ -120,14 +145,19 @@ let
     patch:
     utils.patchJson {
       inherit lib pkgs;
-      inherit (patch) path options extra;
+      inherit (patch)
+        path
+        replaceFile
+        options
+        extra
+        ;
     };
 
   mkPatchIni =
     patch:
     utils.patchIni {
       inherit lib pkgs;
-      inherit (patch) path options;
+      inherit (patch) path replaceFile options;
     };
 
   mkPatchFirefoxExtension =
@@ -138,8 +168,10 @@ let
       profilePath = resolveFirefoxProfilePath patch.profileName;
       inherit (patch)
         extension
+        replaceFile
         options
         extra
+        extraAllowedSites
         ;
     };
 
@@ -147,7 +179,7 @@ let
 
   requireExtension = optionName: extension: {
     assertion = extension != null;
-    message = "nix-home-utils.${optionName}.enable requires pkgs.firefoxAddons.${optionName} or an explicit nix-home-utils.${optionName}.extension.";
+    message = "nix-home-utils.${optionName} requires pkgs.firefoxAddons.${optionName} or an explicit nix-home-utils.${optionName}.extension.";
   };
 
   mkShutUpActivation =
@@ -305,102 +337,161 @@ in
       };
     };
 
-    bypassPaywallsClean = {
-      enable = mkEnableOption "Bypass Paywalls Clean storage patch";
-      extension = mkOption {
-        type = types.nullOr (types.either types.package types.path);
-        default = extensionOrNull "bypass-paywalls-clean";
-      };
-      enableNewSitesByDefault = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      checkUpdateRulesAtStartup = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      showOptionsOnUpdate = mkOption {
-        type = types.bool;
-        default = false;
-      };
-      options = mkOption {
-        type = jsonType;
-        default = { };
-        description = "Additional Bypass Paywalls Clean storage values.";
-      };
+    bypassPaywallsClean = mkOption {
+      default = null;
+      description = "Bypass Paywalls Clean storage patch. Declaring this attribute set enables the patch.";
+      type = types.nullOr (
+        types.submodule {
+          options = {
+            extension = mkOption {
+              type = types.nullOr (types.either types.package types.path);
+              default = extensionOrNull "bypass-paywalls-clean";
+            };
+            enableNewSitesByDefault = mkOption {
+              type = types.nullOr types.bool;
+              default = null;
+            };
+            enableAllSites = mkOption {
+              type = types.bool;
+              default = false;
+              description = "Grant Bypass Paywalls Clean access to all sites through Firefox extension preferences.";
+            };
+            checkUpdateRulesAtStartup = mkOption {
+              type = types.nullOr types.bool;
+              default = null;
+            };
+            showOptionsOnUpdate = mkOption {
+              type = types.nullOr types.bool;
+              default = null;
+            };
+            options = mkOption {
+              type = jsonType;
+              default = { };
+              description = "Additional Bypass Paywalls Clean storage values.";
+            };
+          };
+        }
+      );
     };
 
-    cookieAutoDelete = {
-      enable = mkEnableOption "Cookie AutoDelete storage patch";
-      extension = mkOption {
-        type = types.nullOr (types.either types.package types.path);
-        default = extensionOrNull "cookie-autodelete";
-      };
-      lists = mkOption {
-        type = types.nullOr jsonType;
-        default = null;
-        description = "Cookie AutoDelete expression lists. Required when enabled.";
-      };
-      settings = mkOption {
-        type = types.nullOr jsonType;
-        default = null;
-        description = "Cookie AutoDelete settings. Required when enabled.";
-      };
+    cookieAutoDelete = mkOption {
+      default = null;
+      description = "Cookie AutoDelete storage patch. Declaring this attribute set enables the patch.";
+      type = types.nullOr (
+        types.submodule {
+          options = {
+            extension = mkOption {
+              type = types.nullOr (types.either types.package types.path);
+              default = extensionOrNull "cookie-autodelete";
+            };
+            lists = mkOption {
+              type = jsonType;
+              description = "Cookie AutoDelete expression lists.";
+            };
+            settings = mkOption {
+              type = jsonType;
+              description = "Cookie AutoDelete settings.";
+            };
+          };
+        }
+      );
     };
 
-    darkReader = {
-      enable = mkEnableOption "Dark Reader activation storage patch";
-      extension = mkOption {
-        type = types.nullOr (types.either types.package types.path);
-        default = extensionOrNull "darkreader";
-      };
-      activationEmail = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-      };
-      activationKey = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-      };
+    darkReader = mkOption {
+      default = null;
+      description = "Dark Reader activation storage patch. Declaring this attribute set enables the patch.";
+      type = types.nullOr (
+        types.submodule {
+          options = {
+            extension = mkOption {
+              type = types.nullOr (types.either types.package types.path);
+              default = extensionOrNull "darkreader";
+            };
+            activationEmail = mkOption {
+              type = types.str;
+            };
+            activationKey = mkOption {
+              type = types.str;
+            };
+          };
+        }
+      );
     };
 
-    searchByImage = {
-      enable = mkEnableOption "Search by Image storage patch";
-      extension = mkOption {
-        type = types.nullOr (types.either types.package types.path);
-        default = extensionOrNull "search_by_image";
-      };
-      options = mkOption {
-        type = types.nullOr jsonType;
-        default = null;
-        description = "Search by Image extension storage options. Required when enabled.";
-      };
+    searchByImage = mkOption {
+      default = null;
+      description = "Search by Image storage patch. Declaring this attribute set enables the patch.";
+      type = types.nullOr (
+        types.submodule {
+          options = {
+            extension = mkOption {
+              type = types.nullOr (types.either types.package types.path);
+              default = extensionOrNull "search_by_image";
+            };
+            options = mkOption {
+              type = jsonType;
+              description = "Search by Image extension storage options.";
+            };
+          };
+        }
+      );
     };
 
-    shutUp = {
-      enable = mkEnableOption "Shut Up comment blocker storage patch";
-      extension = mkOption {
-        type = types.nullOr (types.either types.package types.path);
-        default = extensionOrNull "shut-up-comment-blocker";
-      };
-      hosts = mkOption {
-        type = types.listOf types.str;
-        default = [ ];
-        description = "Plaintext hosts to allowlist. Each host is hashed 500 times with SHA-384 for Shut Up storage.";
-      };
-      hashedHosts = mkOption {
-        type = types.listOf types.str;
-        default = [ ];
-        description = "Already-hashed Shut Up host allowlist entries.";
-      };
-      automaticAllowlist = mkOption {
-        type = types.bool;
-        default = true;
-      };
-      contextMenu = mkOption {
-        type = types.bool;
-        default = true;
-      };
+    shutUp = mkOption {
+      default = null;
+      description = "Shut Up comment blocker storage patch. Declaring this attribute set enables the patch.";
+      type = types.nullOr (
+        types.submodule {
+          options = {
+            extension = mkOption {
+              type = types.nullOr (types.either types.package types.path);
+              default = extensionOrNull "shut-up-comment-blocker";
+            };
+            hosts = mkOption {
+              type = types.listOf types.str;
+              default = [ ];
+              description = "Plaintext hosts to allowlist. Each host is hashed 500 times with SHA-384 for Shut Up storage.";
+            };
+            hashedHosts = mkOption {
+              type = types.listOf types.str;
+              default = [ ];
+              description = "Already-hashed Shut Up host allowlist entries.";
+            };
+            automaticAllowlist = mkOption {
+              type = types.bool;
+              default = true;
+            };
+            contextMenu = mkOption {
+              type = types.bool;
+              default = true;
+            };
+          };
+        }
+      );
+    };
+
+    ublacklist = mkOption {
+      default = null;
+      description = "uBlacklist storage replacement. Declaring this attribute set enables the patch.";
+      type = types.nullOr (
+        types.submodule {
+          options = {
+            extension = mkOption {
+              type = types.nullOr (types.either types.package types.path);
+              default = extensionOrNull "ublacklist";
+            };
+            replaceSettings = mkOption {
+              type = types.lines;
+              description = "Complete uBlacklist storage.js contents.";
+            };
+            extraAllowedSites = mkOption {
+              type = types.listOf types.str;
+              default = [ ];
+              description = "Additional site origins to add for uBlacklist in Firefox extension preferences.";
+            };
+          };
+        }
+      );
     };
 
     autostart.items = mkOption {
@@ -427,32 +518,23 @@ in
   config = mkIf cfg.enable (mkMerge [
     {
       assertions =
-        lib.optionals cfg.bypassPaywallsClean.enable [
+        lib.optionals (cfg.bypassPaywallsClean != null) [
           (requireExtension "bypassPaywallsClean" cfg.bypassPaywallsClean.extension)
         ]
-        ++ lib.optionals cfg.cookieAutoDelete.enable [
+        ++ lib.optionals (cfg.cookieAutoDelete != null) [
           (requireExtension "cookieAutoDelete" cfg.cookieAutoDelete.extension)
-          {
-            assertion = cfg.cookieAutoDelete.lists != null && cfg.cookieAutoDelete.settings != null;
-            message = "nix-home-utils.cookieAutoDelete.enable requires lists and settings.";
-          }
         ]
-        ++ lib.optionals cfg.darkReader.enable [
+        ++ lib.optionals (cfg.darkReader != null) [
           (requireExtension "darkReader" cfg.darkReader.extension)
-          {
-            assertion = cfg.darkReader.activationEmail != null && cfg.darkReader.activationKey != null;
-            message = "nix-home-utils.darkReader.enable requires activationEmail and activationKey.";
-          }
         ]
-        ++ lib.optionals cfg.searchByImage.enable [
+        ++ lib.optionals (cfg.searchByImage != null) [
           (requireExtension "searchByImage" cfg.searchByImage.extension)
-          {
-            assertion = cfg.searchByImage.options != null;
-            message = "nix-home-utils.searchByImage.enable requires options.";
-          }
         ]
-        ++ lib.optionals cfg.shutUp.enable [
+        ++ lib.optionals (cfg.shutUp != null) [
           (requireExtension "shutUp" cfg.shutUp.extension)
+        ]
+        ++ lib.optionals (cfg.ublacklist != null) [
+          (requireExtension "ublacklist" cfg.ublacklist.extension)
         ];
 
       nix-home-utils.patches.json = mkMerge [
@@ -486,30 +568,39 @@ in
       ];
 
       nix-home-utils.patches.firefoxExtensions = mkMerge [
-        (mkIf cfg.bypassPaywallsClean.enable {
+        (mkIf (cfg.bypassPaywallsClean != null) {
           bypassPaywallsClean = {
             extension = cfg.bypassPaywallsClean.extension;
-            options = {
-              optIn = cfg.bypassPaywallsClean.checkUpdateRulesAtStartup;
-              optInFetch = cfg.bypassPaywallsClean.checkUpdateRulesAtStartup;
-              optInShown = true;
-              customShown = true;
-              fetchShown = true;
-              sites =
-                (lib.optionalAttrs cfg.bypassPaywallsClean.enableNewSitesByDefault {
-                  "Enable new sites by default" = "#options_enable_new_sites";
-                })
-                // (lib.optionalAttrs cfg.bypassPaywallsClean.checkUpdateRulesAtStartup {
-                  "Check for update rules at startup" = "#options_optin_update_rules";
-                });
-            }
-            // cfg.bypassPaywallsClean.options;
-            extra = lib.optionalString (
-              !cfg.bypassPaywallsClean.showOptionsOnUpdate
-            ) "del(.sites.\"Show options on update\")";
+            extraAllowedSites = lib.optionals cfg.bypassPaywallsClean.enableAllSites [ "*://*/*" ];
+            options =
+              (lib.optionalAttrs (cfg.bypassPaywallsClean.checkUpdateRulesAtStartup != null) {
+                optIn = cfg.bypassPaywallsClean.checkUpdateRulesAtStartup;
+                optInFetch = cfg.bypassPaywallsClean.checkUpdateRulesAtStartup;
+              })
+              // (lib.optionalAttrs
+                (
+                  cfg.bypassPaywallsClean.enableNewSitesByDefault == true
+                  || cfg.bypassPaywallsClean.checkUpdateRulesAtStartup == true
+                )
+                {
+                  sites =
+                    (lib.optionalAttrs (cfg.bypassPaywallsClean.enableNewSitesByDefault == true) {
+                      "Enable new sites by default" = "#options_enable_new_sites";
+                    })
+                    // (lib.optionalAttrs (cfg.bypassPaywallsClean.checkUpdateRulesAtStartup == true) {
+                      "Check for update rules at startup" = "#options_optin_update_rules";
+                    });
+                }
+              )
+              // cfg.bypassPaywallsClean.options;
+            extra =
+              if cfg.bypassPaywallsClean.showOptionsOnUpdate == false then
+                "del(.sites.\"Show options on update\")"
+              else
+                ".";
           };
         })
-        (mkIf cfg.cookieAutoDelete.enable {
+        (mkIf (cfg.cookieAutoDelete != null) {
           cookieAutoDelete = {
             extension = cfg.cookieAutoDelete.extension;
             # To read, run: `jq '.state | fromjson' storage.js`
@@ -519,7 +610,7 @@ in
             };
           };
         })
-        (mkIf cfg.darkReader.enable {
+        (mkIf (cfg.darkReader != null) {
           darkReader = {
             extension = cfg.darkReader.extension;
             options = {
@@ -528,10 +619,17 @@ in
             };
           };
         })
-        (mkIf cfg.searchByImage.enable {
+        (mkIf (cfg.searchByImage != null) {
           searchByImage = {
             extension = cfg.searchByImage.extension;
             options = cfg.searchByImage.options;
+          };
+        })
+        (mkIf (cfg.ublacklist != null) {
+          ublacklist = {
+            extension = cfg.ublacklist.extension;
+            replaceFile = cfg.ublacklist.replaceSettings;
+            extraAllowedSites = cfg.ublacklist.extraAllowedSites;
           };
         })
       ];
@@ -540,7 +638,7 @@ in
         (lib.mapAttrs (_: mkPatchJson) cfg.patches.json)
         // (lib.mapAttrs (_: mkPatchIni) cfg.patches.ini)
         // (lib.mapAttrs (_: mkPatchFirefoxExtension) enabledFirefoxPatches)
-        // (lib.optionalAttrs cfg.shutUp.enable {
+        // (lib.optionalAttrs (cfg.shutUp != null) {
           shutUp = mkShutUpActivation;
         })
         // (lib.optionalAttrs cfg.allowUnfree {

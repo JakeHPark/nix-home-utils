@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import tempfile
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any
 
@@ -220,8 +221,9 @@ class IniValue:
 
 
 class IniPatch:
-    def __init__(self, path: str, patch: dict[str, Any]):
+    def __init__(self, path: str, patch: dict[str, Any], replace_file: str | None = None):
         self.path = path
+        self.replace_file = replace_file
         self.data: dict[tuple[str, ...], dict[str, IniValue]] = {}
         self.patch = flatten_patch(patch)
         self.validate()
@@ -245,7 +247,11 @@ class IniPatch:
 
     def read(self) -> None:
         try:
-            with open(self.path, "r", encoding="utf-8") as handle:
+            if self.replace_file is None:
+                handle = open(self.path, "r", encoding="utf-8")
+            else:
+                handle = self.replace_file.splitlines(keepends=True)
+            with handle if self.replace_file is None else nullcontext(handle):
                 current_group: tuple[str, ...] = ()
                 for line in handle:
                     stripped = line.strip()
@@ -322,10 +328,10 @@ class IniPatch:
 
 
 def main() -> None:
-    if len(sys.argv) != 3:
-        raise ValueError(f"Expected path and patch JSON, got {len(sys.argv) - 1} arguments")
+    if len(sys.argv) != 4:
+        raise ValueError(f"Expected path, patch JSON, and replacement JSON, got {len(sys.argv) - 1} arguments")
 
-    patch = IniPatch(sys.argv[1], json.loads(sys.argv[2]))
+    patch = IniPatch(sys.argv[1], json.loads(sys.argv[2]), json.loads(sys.argv[3]))
     patch.apply()
     patch.save()
 

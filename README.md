@@ -74,19 +74,37 @@ If the JSON does not already exist, it is created. And if you need a final `jq` 
 }
 ```
 
+Set `replaceFile` to replace the whole file before applying `options` and `extra`:
+
+```nix
+{
+  nix-home-utils.patches.json.someApp = {
+    path = ".config/some-app/config.json";
+    replaceFile = builtins.readFile ./config.json;
+    options.ui.theme = "system";
+  };
+}
+```
+
 For Firefox extensions:
 
 ```nix
 {
   nix-home-utils.patches.firefoxExtensions.someExtension = {
     extension = pkgs.firefoxAddons.some-extension;
+    replaceFile = builtins.readFile ./storage.js;
     options = {
       enabled = true;
     };
+    extraAllowedSites = [
+      "https://example.com/*"
+    ];
     extra = "del(.toRemove)";
   };
 }
 ```
+
+`extraAllowedSites` updates the extension GUID's `origins` array in the selected Firefox profile's `extension-preferences.json`. Existing origins are preserved, and a requested origin is appended only when it is not already present.
 
 Set `profileName` on a single Firefox patch if needed:
 
@@ -127,6 +145,8 @@ If the INI file does not already exist, it is created. Unspecified keys are pres
   nix-home-utils.patches.ini.someApp.options.General.OldKey = null;
 }
 ```
+
+`replaceFile = builtins.readFile ./settingsrc;` replaces the complete INI file first, then applies `options`.
 
 INI keys follow the same low-level style as [Plasma Manager](https://github.com/nix-community/plasma-manager)'s `programs.plasma.configFile`: values may be `null`, booleans, numbers, or strings, and can also be written as an attribute set with `value`, `immutable`, `shellExpand`, `persistent`, and `escapeValue`. Unlike Plasma Manager's slash-separated group syntax, `/` is literal here; use nested Nix attributes for nested KConfig groups.
 
@@ -275,6 +295,8 @@ Also see my [Nix OnlyOffice](https://github.com/JakeHPark/nix-onlyoffice) for pr
 
 Firefox extension shortcuts expect packages under `pkgs.firefoxAddons`, as with [`nix-firefox-addons`](https://github.com/OsiPog/nix-firefox-addons). If yours are named differently, set the relevant `extension` option explicitly.
 
+Declaring a shortcut's attribute set enables its patch; there is no separate `enable` option.
+
 All Firefox extension shortcuts patch:
 
 ```text
@@ -315,14 +337,16 @@ Get `pkgs.firefoxAddons.bypass-paywalls-clean` with my [Nix Bypass Paywalls Clea
 ```nix
 {
   nix-home-utils.bypassPaywallsClean = {
-    enable = true;
-    # These are set by default for convenience:
+    # All settings are optional:
+    enableAllSites = true;
     enableNewSitesByDefault = true;
     checkUpdateRulesAtStartup = true;
     showOptionsOnUpdate = false;
   };
 }
 ```
+
+`enableAllSites` adds `"*://*/*"` to the extension's allowed origins in the selected Firefox profile's `extension-preferences.json`. This prevents the annoying permissions dialogue every time the extension is updated.
 
 Extra raw storage values can go in `options`:
 
@@ -345,7 +369,6 @@ These are found here:
 ```nix
 {
   nix-home-utils.cookieAutoDelete = {
-    enable = true;
     lists = builtins.fromJSON (builtins.readFile ./cookie-autodelete-expressions.json);
     settings = builtins.fromJSON (builtins.readFile ./cookie-autodelete-settings.json);
   };
@@ -369,21 +392,19 @@ jq '(.state | fromjson).settings' storage.js > cookie-autodelete-settings.json
 ```nix
 {
   nix-home-utils.darkReader = {
-    enable = true;
     activationEmail = "name@example.com";
     activationKey = "...";
   };
 }
 ```
 
-Both activation values are required when Dark Reader is enabled.
+Both activation values are required when Dark Reader is configured.
 
 ### Search by Image
 
 ```nix
 {
   nix-home-utils.searchByImage = {
-    enable = true;
     options = builtins.fromJSON (builtins.readFile ./search-by-image.json);
   };
 }
@@ -395,12 +416,24 @@ You can find this at:
 ~/.config/mozilla/firefox/default/browser-extension-data/{2e5ff8c8-32fe-46d0-9fc8-6b8986621f3c}/storage.js
 ```
 
+### uBlacklist
+
+Replace uBlacklist's settings completely:
+
+```nix
+{
+  nix-home-utils.ublacklist = {
+    replaceSettings = builtins.readFile ./ublacklist.json;
+    extraAllowedSites = [ "*://*/*" ];
+  };
+}
+```
+
 ### Shut Up
 
 ```nix
 {
   nix-home-utils.shutUp = {
-    enable = true;
     hosts = [
       "github.com"
       "example.com"
