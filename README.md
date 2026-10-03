@@ -417,7 +417,7 @@ You can find this at:
 
 ### uBlacklist
 
-Replace uBlacklist's settings completely:
+Replace uBlacklist's settings completely with your exported ones:
 
 ```nix
 {
