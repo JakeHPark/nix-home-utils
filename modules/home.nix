@@ -122,6 +122,15 @@ let
     _: patch: patch.extension != null
   ) cfg.patches.firefoxExtensions;
 
+  unsupportedAllSites = [
+    "<all_urls>"
+    "*://*/*"
+    "http://*/*"
+    "https://*/*"
+    "ws://*/*"
+    "wss://*/*"
+  ];
+
   # Match Home Manager's Firefox layout without relying on its internal
   # programs.firefox.profilesPath option.
   firefoxProfilesPath =
@@ -351,11 +360,6 @@ in
               type = types.nullOr types.bool;
               default = null;
             };
-            enableAllSites = mkOption {
-              type = types.bool;
-              default = false;
-              description = "Grant Bypass Paywalls Clean access to all sites through Firefox extension preferences.";
-            };
             checkUpdateRulesAtStartup = mkOption {
               type = types.nullOr types.bool;
               default = null;
@@ -535,7 +539,11 @@ in
         ]
         ++ lib.optionals (cfg.ublacklist != null) [
           (requireExtension "ublacklist" cfg.ublacklist.extension)
-        ];
+        ]
+        ++ lib.mapAttrsToList (name: patch: {
+          assertion = lib.all (site: !(builtins.elem site unsupportedAllSites)) patch.extraAllowedSites;
+          message = "nix-home-utils.patches.firefoxExtensions.${name}.extraAllowedSites cannot grant all-sites access; grant it through Firefox instead.";
+        }) enabledFirefoxPatches;
 
       nix-home-utils.patches.json = mkMerge [
         (mkIf (cfg.galaxyBudsClient.settings != { }) {
@@ -571,7 +579,6 @@ in
         (mkIf (cfg.bypassPaywallsClean != null) {
           bypassPaywallsClean = {
             extension = cfg.bypassPaywallsClean.extension;
-            extraAllowedSites = lib.optionals cfg.bypassPaywallsClean.enableAllSites [ "*://*/*" ];
             options =
               (lib.optionalAttrs (cfg.bypassPaywallsClean.checkUpdateRulesAtStartup != null) {
                 optIn = cfg.bypassPaywallsClean.checkUpdateRulesAtStartup;

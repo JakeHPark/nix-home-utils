@@ -104,7 +104,7 @@ For Firefox extensions:
 }
 ```
 
-`extraAllowedSites` updates the extension GUID's `origins` array in the selected Firefox profile's `extension-preferences.json`. Existing origins are preserved, and a requested origin is appended only when it is not already present.
+`extraAllowedSites` updates the extension GUID's `origins` array in the selected Firefox profile's `extension-preferences.json`. Existing origins are preserved, and a requested origin is appended only when it is not already present. Firefox handles all-sites grants specially, so patterns such as `"*://*/*"` and `"<all_urls>"` are rejected; grant all-sites access through Firefox instead.
 
 Set `profileName` on a single Firefox patch if needed:
 
@@ -338,15 +338,12 @@ Get `pkgs.firefoxAddons.bypass-paywalls-clean` with my [Nix Bypass Paywalls Clea
 {
   nix-home-utils.bypassPaywallsClean = {
     # All settings are optional:
-    enableAllSites = true;
     enableNewSitesByDefault = true;
     checkUpdateRulesAtStartup = true;
     showOptionsOnUpdate = false;
   };
 }
 ```
-
-`enableAllSites` adds `"*://*/*"` to the extension's allowed origins in the selected Firefox profile's `extension-preferences.json`. This prevents the annoying permissions dialogue every time the extension is updated.
 
 Extra raw storage values can go in `options`:
 
@@ -363,6 +360,8 @@ These are found here:
 ```bash
 ~/.config/mozilla/firefox/default/browser-extension-data/magnolia@12.34/storage.js
 ```
+
+I wanted to also add an option to enable Bypass Paywalls Clean automatically on all sites to get rid of the annoying permissions dialogue on update, but there's no clean way to do this.
 
 ### Cookie AutoDelete
 
@@ -424,7 +423,10 @@ Replace uBlacklist's settings completely:
 {
   nix-home-utils.ublacklist = {
     replaceSettings = builtins.readFile ./ublacklist.json;
-    extraAllowedSites = [ "*://*/*" ];
+    extraAllowedSites = [
+      "https://search.brave.com/*"
+      "https://ublacklist.github.io/*"
+    ];
   };
 }
 ```
@@ -493,3 +495,4 @@ Most of these should be redundant given the module options. For direct `patchFir
 - INI patching preserves unspecified keys, removes keys set to `null`, and writes KDE KConfig key suffixes for `immutable` and `shellExpand`.
 - Do not manage the same file with both `home.file` and these patch helpers.
 - Firefox extension packages must contain an `.xpi` somewhere below the package path.
+- To restart the Home Manager activation service for debugging, run `sudo systemctl restart "home-manager-$USER.service"`.
