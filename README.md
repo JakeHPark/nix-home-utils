@@ -104,7 +104,7 @@ For Firefox extensions:
 }
 ```
 
-`extraAllowedSites` updates the extension GUID's `origins` array in the selected Firefox profile's `extension-preferences.json`. Existing origins are preserved, and a requested origin is appended only when it is not already present. Firefox handles all-sites grants specially, so patterns such as `"*://*/*"` and `"<all_urls>"` are rejected; grant all-sites access through Firefox instead.
+`extraAllowedSites` updates the extension GUID's `origins` array in the selected Firefox profile's `extension-preferences.json`. Existing origins are preserved, and a requested origin is appended only when it is not already present. Firefox handles all-sites grants specially, so patterns such as `"*://*/*"` and `"<all_urls>"` are rejected; grant all-sites access through Firefox instead. It should also be noted that once Firefox reads `extension-preferences.json`, any extra allowed sites won't be removed if you remove them from the JSON, so this only works for *adding* allowed sites.
 
 Set `profileName` on a single Firefox patch if needed:
 
