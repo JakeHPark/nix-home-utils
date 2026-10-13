@@ -361,8 +361,6 @@ These are found here:
 ~/.config/mozilla/firefox/default/browser-extension-data/magnolia@12.34/storage.js
 ```
 
-I wanted to also add an option to enable Bypass Paywalls Clean automatically on all sites to get rid of the annoying permissions dialogue on update, but there's no clean way to do this.
-
 ### Cookie AutoDelete
 
 ```nix
